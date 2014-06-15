@@ -100,10 +100,16 @@ class encode_visitor(object):
 
    def enter_dict(self):
       os.mkdir(self._path)
+      self._names = set()
       if self._v:
          print("dir '%s':" % self._path, file=sys.stderr)
 
    def visit_entry(self, name, t, obj):
+
+      fp.validate_name(name)
+      assert name not in self._names, "duplicate name %r" % name
+      self._names.add(name)
+
       if t == 'l' and isinstance(obj, fp.fingerprint):
          fpath = os.path.join(self._path, quote('\0' + name))
          if self._v:
@@ -123,5 +129,6 @@ class encode_visitor(object):
          raise TypeError("invalid object type")
 
    def leave_dict(self):
+      del self._names
       if self._v:
          print("end dir '%s'" % self._path, file=sys.stderr)

@@ -35,6 +35,10 @@ class pyrepr_visitor(object):
       self._value = {}
 
    def visit_entry(self, name, t, obj):
+
+      fp.validate_name(name)
+      assert name not in self._value, "duplicate name %r" % name
+
       if t == 'l' and isinstance(obj, fp.fingerprint):
          self._value[name] = int(obj)
       elif isinstance(obj, fp.fingerprintable):

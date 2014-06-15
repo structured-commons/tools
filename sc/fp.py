@@ -35,7 +35,24 @@ def fletcher(barray):
         b = (a + b) % 255
     return (a, b)
 
+def validate_name(name):
+    """Ensure a name is valid.
+
+    A valid name must be a character string, not empty and not contain
+    codes between 0 and 31 inclusive.
+    """
+    # a name is a character string
+    assert isinstance(name, str) or isinstance(name, type(u'')), \
+           "name %r is not a string" % name
+
+    assert len(name) > 0 # name must not be empty
+    for c in name:
+        assert ord(c) > 31, \
+            "invalid character %r (code %d) found in name %r" % (c, ord(c), name)
+
+
 class fingerprintable(object):
+
     """Base class for Python objects that can be fingerprinted."""
 
     def visit(self, v):
@@ -120,15 +137,11 @@ class compute_visitor(object):
         if self._v:
             print("entry %r: " % name, end='', file=sys.stderr)
 
-        # a name is a character string
-        assert isinstance(name, str) or isinstance(name, type(u''))
-
-        assert len(name) > 0 # name must not be empty
-        for c in name:
-            assert ord(c) > 31 # name must not contain special characters
+        # name must have valid form
+        validate_name(name)
 
         # names must be unique in dictionary
-        assert name not in self._ents # name is not unique
+        assert name not in self._ents, "duplicate name %r" % name
 
         if (t == 'l') and hasattr(obj, 'binary'):
             self._ents[name] = (t, obj.binary())
