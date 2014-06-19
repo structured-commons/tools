@@ -2,26 +2,51 @@
 
 from __future__ import print_function
 
-from sc import fp, fs, pyrepr
+from sc import fp, fs, py, js
 
-import json
+import pickle
 import sys
 import getopt
 import os
 import os.path
 import ast
 
+def force_bytes(data):
+    if isinstance(data, str) or isinstance(data, type(u'')):
+        data = bytearray((ord(c) for c in data))
+    return data
+
 def usage():
-    print("usage: %s [OPTIONS] [FMT:SOURCE] [FMT:SINK]" % sys.argv[0])
+    print("usage: %s [OPTIONS] [SOURCE] [DESTINATION]" % sys.argv[0])
     print("Options:\n"
           "  -a        include filenames starting with .\n"
           "  -i PAT    ignore filenames matching PAT\n"
           "  -h        display this help and exit\n"
+          "  -b        use Base64 for files when printing JSON\n"
           "  -v        run verbosely\n")
+    print("Valid forms for SOURCE:\n"
+          "  fs:PATH      Filesystem\n"
+          "  json:PATH    JSON data\n"
+          "  raw:PATH     Raw bytes (simple object)\n"
+          "  utf8:PATH    UTF-8 encoded bytes (simple object)\n"
+          "  str:STRING   Immediate UTF-8 encoded string (simple object)\n"
+          "  pickle:PATH  Python pickled object\n"
+          "\n"
+          "Valid forms for DESTINATION:\n"
+          "  fp:FORMAT    Compute and print the fingerprint\n"
+          "  fs:PATH      Filesystem\n"
+          "  json:PATH    JSON data\n"
+          "  raw:PATH     Raw bytes (only simple object)\n"
+          "  utf8:PATH    UTF-8 encoded bytes (only simple object)\n"
+          "  pickle:PATH  Python pickled object\n"
+          "\n"
+          "If PATH is a single hyphen '-', data is read from (resp. written to)\n"
+          "the standard input (resp. output).\n")
     print("Examples:\n"
-          "\t%s fs:. fp:compact" % sys.argv[0])
+          "\t%s fs:. fp:compact\n"
+          "\t%s -b fs:. json:-" % (sys.argv[0], sys.argv[0]))
 
-opts, args = getopt.getopt(sys.argv[1:], "vahi:", ['help'])
+opts, args = getopt.getopt(sys.argv[1:], "bvahi:", ['help'])
 dopts = dict(opts)
 
 if '-h' in dopts or '--help' in dopts:
@@ -35,6 +60,7 @@ for a, v in opts:
     if a == '-i':
         ignorelist.append(v)
 verbose = ('-v' in dopts)
+b64json = ('-b' in dopts)
 
 src = 'raw:-'
 dst = 'fp:compact'
@@ -46,76 +72,80 @@ if len(args) > 1:
 
 src_method, src_name = src.split(':',1)
 dst_method, dst_name = dst.split(':',1)
-if src_method in ['raw', 'json', 'py']:
+if src_method in ['raw', 'json', 'py', 'pickle', 'utf8']:
     if src_name == '-':
-        src_file = open('/dev/stdin', 'rb')
+        src_file = open('/dev/stdin', src_method == 'json' and 'r' or 'rb')
     else:
-        src_file = open(src_name, 'rb')
-if dst_method in ['raw', 'json', 'py']:
+        src_file = open(src_name, src_method == 'json' and 'r' or 'rb')
+
+if dst_method in ['raw', 'json', 'py', 'pickle', 'utf8']:
     if dst_name == '-':
-        dst_file = open('/dev/stdout', 'wb')
+        dst_file = open('/dev/stdout', dst_method in ['json', 'py'] and 'w' or 'wb')
     else:
-        dst_file = open(dst_name, 'wb')
+        dst_file = open(dst_name, dst_method in ['json', 'py'] and 'w' or 'wb')
 
 if src_method == 'fs':
     assert os.path.exists(src_name)
     src_obj = fs.fs_wrap(src_name, ignorelist)
 
-elif src_method in ['raw', 'str']:
+elif src_method in ['raw', 'utf8', 'str', 'pickle']:
+
     if src_method == 'raw':
-        data = src_file.read()
-        if src_name == '-' and isinstance(data, str):
-            data = bytearray(data, 'utf-8')
-        elif isinstance(data, str):
-            data = bytearray(data) # python 2
-    else:
+        # raw bytes, unencoded
+        data = force_bytes(src_file.read())
+
+    elif src_method == 'utf8':
+        # utf-8 encoded data
+        data = force_bytes(src_file.read())
+        data = data.decode('utf-8')
+        data = bytearray((ord(c) for c in data))
+
+    elif src_method == 'str':
+        # utf-8 encoded data in name
         data = bytearray(src_name, 'utf-8')
 
-    class raw_wrap(fp.fingerprintable):
-        def visit(self, v):
-            v.enter_file(len(data))
-            v.visit_data(data)
-            v.leave_file()
+    elif src_method == 'pickle':
+        data = pickle.load(src_file)
 
-    src_obj = raw_wrap()
+    src_obj = py.decode(data)
 
 elif src_method == 'json':
-    data = src_file.read()
-    data = data.decode('utf-8')
-    data = json.loads(data)
-    src_obj = pyrepr.pyrepr_wrap(data)
-
-elif src_method == 'py':
-    data = src_file.read()
-    data = data.decode('utf-8')
-    data = ast.literal_eval(data)
-    src_obj = pyrepr.pyrepr_wrap(data)
+    src_obj = js.decode(src_file)
 
 else:
     print("unknown input method '%s'" % src_method, file=sys.stderr)
     sys.exit(1)
 
-if dst_method in ['py', 'raw', 'json']:
-    v = pyrepr.pyrepr_visitor()
-    src_obj.visit(v)
-    src_obj = v.value()
 
 if dst_method == 'fs':
     v = fs.encode_visitor(dst_name, verbose)
     src_obj.visit(v)
 
-elif dst_method == 'py':
-    s = repr(src_obj) + '\n'
-    dst_file.write(s.encode('utf-8'))
+elif dst_method in ['py', 'raw', 'utf8', 'pickle']:
+    src_py = py.encode(src_obj)
+
+    if dst_method == 'py':
+        dst_file.write(repr(src_py))
+
+    elif dst_method == 'raw':
+        assert isinstance(src_py, bytearray)
+        dst_file.write(src_py)
+
+    elif dst_method == 'utf8':
+        assert isinstance(src_py, bytearray)
+        try:
+            x = unichr(0)
+        except:
+            unichr = chr
+        src_str = u''.join((unichr(x) for x in src_py))
+        src_data = force_bytes(src_str.encode('utf-8'))
+        dst_file.write(src_data)
+
+    elif dst_method == 'pickle':
+        pickle.dump(src_py, dst_file)
 
 elif dst_method == 'json':
-    s = json.dumps(src_obj) + '\n'
-    dst_file.write(s.encode('utf-8'))
-
-elif dst_method == 'raw':
-    assert isinstance(src_obj, str) or isinstance(src_obj, type(u''))
-    s = src_obj.encode('utf-8')
-    dst_file.write(s)
+    js.encode(src_obj, dst_file, use_base64=b64json)
 
 elif dst_method == 'fp':
     v = fp.compute_visitor(verbose)

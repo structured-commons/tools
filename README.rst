@@ -78,29 +78,36 @@ Where ``SOURCE`` is any of the following:
 ``raw:FILE`` or ``raw:-``
    Read a single file object as byte stream from ``FILE`` or stdin.
 
-``py:FILE`` or ``py:-``
-   Python syntax read as dictionaries / strings / long integers from ``FILE`` or stdin.
+``utf8:FILE`` or ``utf8:-``
+   Read a single file object as an UTF-8 encoded byte stream from ``FILE`` or stdin.
+
+``pickle:FILE`` or ``pickle:-``
+   Read a pickled Python object from ``FILE`` or stdin.
 
 ``json:FILE`` or ``json:-``
    JSON syntax read as associative arrays / strings / numbers from ``FILE`` or stdin.
 
 and ``DESTINATION`` is any of the following:
 
-``fs:PATH``
-   Write the filesystem representation starting from ``PATH`` (which must not exist yet).
-
 ``fp:FORMAT``
    Compute and print the input object's fingerprint using ``FORMAT``. See
    the description of ``fptool.py`` below for possible formats.
 
-``raw:FILE`` or ``raw:-``
-   Write a single file object as byte stream to ``FILE`` or stdin.
-
-``py:FILE`` or ``py:-``
-   Python syntax read as dictionaries / strings / long integers from ``FILE`` or stdin.
+``fs:PATH``
+   Write the filesystem representation starting from ``PATH`` (which must not exist yet).
 
 ``json:FILE`` or ``json:-``
-   JSON syntax read as associative arrays / strings / numbers from ``FILE`` or stdin.
+   Emit the JSON syntax as associative arrays / strings to ``FILE`` or stdout.
+
+``raw:FILE`` or ``raw:-``
+   Write a single file object as byte stream to ``FILE`` or stdout.
+
+``utf8:FILE`` or ``utf8:-``
+   Write a single file object as UTF-8 encoded byte stream to ``FILE`` or stdout.
+
+``py:FILE`` or ``py:-``
+   Write an quivalent Python syntax  to  ``FILE`` or stdout.
+
 
 The defaults for ``SOURCE`` and ``DESTINATION`` are ``raw:-`` and ``fp:compact``, respectively.
 
@@ -117,6 +124,9 @@ Command-line options:
 
 ``-a``
    Also include filesystem names starting with a dot (by default, they are ignored).
+
+``-b``
+   Use Base64 encoding when outputting JSON.
 
 Usage: fptool.py
 ----------------

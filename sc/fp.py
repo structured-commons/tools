@@ -109,6 +109,7 @@ class compute_visitor(object):
 
     def visit_data(self, b):
         """Fingerprint some more data from a file previously entered."""
+        assert isinstance(b, bytearray) or isinstance(b, bytes)
         self._cnt += len(b)
         self._h.update(b)
 
@@ -346,7 +347,7 @@ def _check_ck(f):
     return (fingerprint(fp), None)
 
 def _from_compact(s):
-    assert isinstance(s, str)
+    assert isinstance(s, str) or isinstance(s, type(u''))
     if not s.startswith('fp:'):
         return (None, "invalid prefix (expected 'fp:', got '%s')" % s[:3])
     s = s[3:]
@@ -359,7 +360,7 @@ def _from_compact(s):
     return _check_ck(f)
 
 def _from_long(s):
-    assert isinstance(s, str)
+    assert isinstance(s, str) or isinstance(s, type(u''))
     s = s.upper()
     if not s.startswith('FP::'):
         return (None, "invalid prefix (expected 'fp::', got '%s')" % s[:4])

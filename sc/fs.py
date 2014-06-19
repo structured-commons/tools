@@ -68,7 +68,7 @@ class fs_wrap(fp.fingerprintable):
           v.enter_file(os.path.getsize(self._path))
           with open(self._path, 'rb') as f:
              while True:
-                chunk = f.read(8192)
+                chunk = bytearray(f.read(8192))
                 if len(chunk) == 0: break
                 v.visit_data(chunk)
           v.leave_file()
@@ -87,6 +87,7 @@ class encode_visitor(object):
          print("file '%s', sz %d" % (self._path, sz), end='', file=sys.stderr)
 
    def visit_data(self, b):
+      assert isinstance(b, bytearray) or isinstance(b, bytes)
       self._cnt += len(b)
       self._f.write(b)
       if self._v:
@@ -121,7 +122,7 @@ class encode_visitor(object):
          fsname = quote(name)
          if fsname.startswith('.'):
             # avoid "bad" entries "." amd ".." and hidden filenames
-            fsname = b'%2E' + fsname[1:]
+            fsname = '%2E' + fsname[1:]
          fpath = os.path.join(self._path, fsname)
          obj.visit(encode_visitor(fpath, self._v))
 
